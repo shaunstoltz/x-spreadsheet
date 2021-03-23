@@ -1,6 +1,6 @@
 /* global window */
 import { h } from './element';
-import { bind, mouseMoveUp, bindTouch } from './event';
+import { bind, mouseMoveUp, bindTouch, createEventEmitter } from './event';
 import Resizer from './resizer';
 import Scrollbar from './scrollbar';
 import Selector from './selector';
@@ -166,7 +166,12 @@ function overlayerMousemove(evt) {
   }
 }
 
+// let scrollThreshold = 15;
 function overlayerMousescroll(evt) {
+  // scrollThreshold -= 1;
+  // if (scrollThreshold > 0) return;
+  // scrollThreshold = 15;
+
   const { verticalScrollbar, horizontalScrollbar, data } = this;
   const { top } = verticalScrollbar.scroll();
   const { left } = horizontalScrollbar.scroll();
@@ -226,6 +231,7 @@ function overlayerMousescroll(evt) {
   const tempY = Math.abs(deltaY);
   const tempX = Math.abs(deltaX);
   const temp = Math.max(tempY, tempX);
+  // console.log('event:', evt);
   // detail for windows/mac firefox vertical scroll
   if (/Firefox/i.test(window.navigator.userAgent)) throttle(moveY(evt.detail), 50);
   if (temp === tempX) throttle(moveX(deltaX), 50);
@@ -306,6 +312,7 @@ function clearClipboard() {
 function copy() {
   const { data, selector } = this;
   data.copy();
+  data.copyToSystemClipboard();
   selector.showClipboard();
 }
 
@@ -687,6 +694,7 @@ function sheetInitEvents() {
   });
 
   bind(window, 'paste', (evt) => {
+    if(!this.focusing) return;
     paste.call(this, 'all', evt);
     evt.preventDefault();
   });
@@ -842,7 +850,7 @@ function sheetInitEvents() {
 
 export default class Sheet {
   constructor(targetEl, data) {
-    this.eventMap = new Map();
+    this.eventMap = createEventEmitter();
     const { view, showToolbar, showContextmenu } = data.settings;
     this.el = h('div', `${cssPrefix}-sheet`);
     this.toolbar = new Toolbar(data, view.width, !showToolbar);
@@ -899,15 +907,13 @@ export default class Sheet {
   }
 
   on(eventName, func) {
-    this.eventMap.set(eventName, func);
+    this.eventMap.on(eventName, func);
     return this;
   }
 
   trigger(eventName, ...args) {
     const { eventMap } = this;
-    if (eventMap.has(eventName)) {
-      eventMap.get(eventName).call(this, ...args);
-    }
+    eventMap.fire(eventName, args)
   }
 
   resetData(data) {
